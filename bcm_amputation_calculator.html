@@ -57,7 +57,7 @@ code{font-size:.82rem;word-break:break-all}
   <div class="r f" id="calc"></div>
 </div>
 
-<div class="f">公式 Formula:校正值 = 測量值 − Σ(測量值 − 表內校正值)。表內數值之間以線性內插計算(表格以外的內插為本工具假設)。OH &gt; 8 L 時按手寫備註採用 8 L 數據。僅供參考,請與原始 fact sheet 核對。<br>Reference only; verify against the original fact sheet.</div>
+<div class="f">公式 Formula:校正值 = 測量值 − Σ(測量值 − 表內校正值)。表內數值之間以線性內插計算(表格以外的內插為本工具假設)。OH &gt; 8 L:單腳 = 查表(測量值 − 8) + 查表(8);雙腳 = 測量值 − Σ(8 − 8 L 行嘅表內值)。僅供參考,請與原始 fact sheet 核對。<br>Reference only; verify against the original fact sheet.</div>
 </div>
 
 <script>
@@ -81,15 +81,23 @@ function lookup(T,m,col){
 function correct(T,m,legs,isOH){
   const lo=T[0][0],hi=T[T.length-1][0];
   let note="",mm=m;
-  if(isOH&&m>hi){mm=hi;note="OH &gt; 8 L:按備註採用 8 L 數據計算。";}
+  if(isOH&&m>hi){mm=hi;note="OH &gt; 8 L:每隻截肢腳以 8 L 嗰行嘅差值 (8 − 表內值) 扣減。";}
   else if(m<lo||m>hi){return{err:"測量值超出表格範圍 ("+lo+" – "+hi+" L)"};}
+  if(isOH&&m>hi&&legs.length===1){
+    const l=legs[0];let rem=m,sum=0,t=[];
+    while(rem>hi){const c8=lookup(T,hi,l);sum+=c8;t.push(c8.toFixed(1));rem-=hi;}
+    rem=Math.round(rem*10)/10;
+    const cr=lookup(T,rem,l);sum+=cr;
+    const ps=[rem].concat(t.map(()=>hi)).join(" + "),vs=[cr.toFixed(1)].concat(t).join(" + ");
+    return{val:sum,note:"OH > 8 L 單腳:拆成 8 L 同餘數分別查表再相加。",parts:[],mm,txt:NAME[l]+" "+m+" = "+ps+" → "+vs};
+  }
   let r=m,parts=[];
   for(const l of legs){
     const c=lookup(T,mm,l);
-    r-=(m-c);
+    r-=(mm-c);
     parts.push(NAME[l]+" "+c.toFixed(1));
   }
-  return{val:r,note,parts};
+  return{val:r,note,parts,mm};
 }
 function run(){
   const L=+$("L").value,R=+$("R").value;
@@ -100,7 +108,7 @@ function run(){
     if(res.err){$(el).textContent="–";msg+='<div class="n">'+(el==="ohr"?"OH":"V")+": "+res.err+"</div>";return;}
     $(el).textContent=res.val.toFixed(1);
     if(res.note)msg+='<div class="n">'+res.note+"</div>";
-    calc+="<code>"+(el==="ohr"?"OH":"V")+": "+m+(res.parts.length?" − ("+res.parts.map(p=>m+" − "+p.split(" ")[1]).join(") − ("):"")+(res.parts.length?")":"")+" = "+res.val.toFixed(1)+" L</code><br>";
+    calc+=res.txt?("<code>"+(el==="ohr"?"OH":"V")+": "+res.txt+" = "+res.val.toFixed(1)+" L</code><br>"):"<code>"+(el==="ohr"?"OH":"V")+": "+m+(res.parts.length?" − ("+res.parts.map(p=>res.mm+" − "+p.split(" ")[1]).join(") − ("):"")+(res.parts.length?")":"")+" = "+res.val.toFixed(1)+" L</code><br>";
   };
   $("ohr").textContent="–";$("vr").textContent="–";
   if(!legs.length){
